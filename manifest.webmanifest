@@ -1,0 +1,20 @@
+{
+  "id": "./",
+  "name": "Posta della sera",
+  "short_name": "Posta",
+  "description": "Il riepilogo serale della inbox: pacchi, scadenze, movimenti.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#16233A",
+  "theme_color": "#16233A",
+  "lang": "it",
+  "dir": "ltr",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
