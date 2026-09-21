@@ -187,6 +187,33 @@ def test_una_parola_vietata_blocca_i_dati():
         dati.valida(d)
 
 
+def test_parlare_di_un_token_non_e_un_segreto():
+    """Il falso positivo che ha bloccato la pagina il 21 settembre: la parola
+    nuda non e' un segreto, lo e' il valore. Il controllo vero sta sulla forma,
+    in controlla_pagina.py."""
+    innocue = [
+        "Il token del workflow e' scaduto, va rigenerato.",
+        "Ritiro al Fermopoint, ti mandano il PIN per SMS.",
+        "Rimborso accreditato sull'IBAN abituale.",
+        "Cambia la password quando puoi.",
+    ]
+    for frase in innocue:
+        d = json.loads(json.dumps(ESEMPIO))
+        d["sezioni"]["da_fare"]["voci"][0]["testo"] = frase
+        dati.valida(d)  # non deve alzare
+
+
+def test_un_segreto_vero_blocca_ancora():
+    for frase in ("password: hunter2extra",
+                  "token ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "IBAN IT60X0542811101000000123456",
+                  "Authorization: Bearer abcdefghijklmnop123"):
+        d = json.loads(json.dumps(ESEMPIO))
+        d["sezioni"]["da_fare"]["voci"][0]["testo"] = frase
+        with pytest.raises(dati.Errore, match="vietata"):
+            dati.valida(d)
+
+
 def test_una_sezione_vuota_sparisce():
     d = json.loads(json.dumps(ESEMPIO))
     d["sezioni"]["viaggi"] = {"voci": []}

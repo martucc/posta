@@ -28,11 +28,21 @@ URL_OK = re.compile(r"^https://[^\s\"'<>]+$")
 STAMP = re.compile(r"^\d{2}\.\d{2}$")
 ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
-# Quello che non deve mai finire in una pagina pubblica, per quanto Claude
-# sia convinto che serva. controlla_pagina.py ricontrolla sull'HTML finito.
+# Quello che non deve mai finire in una pagina pubblica. Blocchiamo il VALORE,
+# non la parola: "il token e' scaduto" e' una frase, "token: ghp_..." e' un
+# segreto. La parola nuda bloccava pagine innocue e non proteggeva niente,
+# perche' i segreti veri li riconosce controlla_pagina.py sulla forma.
 VIETATO = re.compile(
-    r"\b(password|passwd|otp|one[- ]time|codice di verifica|verification code|"
-    r"pin\b|token|api[_ -]?key|secret|bearer |iban)\b", re.I)
+    r"(?:\b(?:password|passwd|pwd|api[_ -]?key|secret|client[_ -]?secret)\b\s*[:=]\s*\S)"
+    r"|(?:\b(?:otp|pin|codice di verifica|verification code|codice di accesso)\b"
+    r"[^\d\n]{0,20}\d{4,8}\b)"
+    r"|(?:\bbearer\s+[A-Za-z0-9._-]{12,})"
+    r"|(?:\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]{20,})"
+    r"|(?:\bya29\.[A-Za-z0-9._-]{20,})"
+    r"|(?:\bAIza[A-Za-z0-9_-]{30,})"
+    r"|(?:\bsk-[A-Za-z0-9]{20,})"
+    r"|(?:\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,})"
+    r"|(?:\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b)", re.I)
 
 
 class Errore(ValueError):
