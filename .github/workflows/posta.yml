@@ -5,11 +5,9 @@ on:
   # entrambe e la guardia qui sotto decide qual e' quella buona. I cron di GitHub
   # arrivano in coda, quindi la guardia tollera il ritardo senza pubblicare due volte.
   #
-  # SPENTO finche' non hai fatto un dry-run riuscito.
-  # Per accendere: togli il # dalle tre righe qui sotto.
-  # schedule:
-  #   - cron: "0 18 * * *"
-  #   - cron: "0 19 * * *"
+  schedule:
+    - cron: "0 18 * * *"
+    - cron: "0 19 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
