@@ -1,0 +1,68 @@
+{
+  "data": {"oggi": "DOM 20 SET 2026", "oggi_iso": "2026-09-20", "stamp": "20.09"},
+  "titolo": {"testo": "Tre pacchi in viaggio, uno da chiudere entro giovedì", "evidenzia": "da chiudere"},
+  "thread_letti": 52,
+  "contatori": [
+    {"n": 3, "etichetta": "Da fare", "urgente": true},
+    {"n": 3, "etichetta": "In viaggio"},
+    {"n": 2, "etichetta": "Movimenti"},
+    {"n": 44, "etichetta": "Rumore"}
+  ],
+  "sezioni": {
+    "pacchi": {
+      "nota": "dalle mail dei corrieri",
+      "coda": "Chiusi, quindi fuori dalla lista: **Amazon** consegnato il 13, **Myprotein** ritirato il 9.",
+      "voci": [
+        {
+          "tipo": "riga", "threadId": "1a0bda2e9907825d", "chi": "Pull&Bear",
+          "tag": {"testo": "22–23 set", "stile": "ok"},
+          "testo": "Maglietta henley e jeans baggy, 55,98 €. Ritiro al drop point **Nkd-Lugo**, via Piratello 68.",
+          "route": [
+            {"nome": "Ordinato", "data": "18 SET", "stato": "done"},
+            {"nome": "Spedito", "data": "20 SET", "stato": "now"},
+            {"nome": "Al drop point", "stato": "futuro"},
+            {"nome": "Ritirato", "stato": "futuro"}
+          ],
+          "meta": [{"chiave": "ordine", "valore": "20236321302"}],
+          "azioni": [{"testo": "Traccia", "url": "https://www.pullandbear.com/IT/it/user-profile.html", "nota": "serve il login"}]
+        },
+        {
+          "tipo": "riga", "threadId": "1a0b8ba30ad38929", "chi": "Private Sport Shop",
+          "tag": {"testo": "in transito", "stile": "go"},
+          "testo": "Casco da sci Giro Owen Spherical. Chronopost verso un punto relais, nessuna data nella mail.",
+          "route": [
+            {"nome": "Ordinato", "data": "17 SET", "stato": "done"},
+            {"nome": "Spedito", "data": "19 SET", "stato": "now"},
+            {"nome": "In consegna", "stato": "futuro"},
+            {"nome": "Consegnato", "stato": "futuro"}
+          ],
+          "meta": [{"chiave": "chronopost", "valore": "XU182063665JF"}, {"chiave": "ordine", "valore": "2200314427"}],
+          "azioni": [{"testo": "Traccia", "url": "https://www.chronopost.fr/tracking-no-cms/suivi-page"}]
+        }
+      ]
+    },
+    "da_fare": {
+      "voci": [
+        {
+          "tipo": "riga", "threadId": "1a0be250786b462e", "chi": "Rimini, giovedì 24",
+          "tag": {"testo": "fra 4 giorni", "stile": "crit"}, "urgente": true,
+          "testo": "Hostess & Promoter cerca staff per un team building al Club del Sole. 7:30–13:00, **60 € netti**.",
+          "meta": [{"chiave": "pagamento", "valore": "bonifico a 60 giorni"}]
+        }
+      ]
+    },
+    "soldi": {
+      "nota": "via Curve",
+      "voci": [
+        {"tipo": "soldi", "threadId": "1a0bb9883bca7a4a", "chi": "Rimborso Samsung Italy",
+         "testo": "Emesso il 18 settembre, fino a 7 giorni per l'accredito.",
+         "importo": {"valore": "+11,70", "stile": "in"}}
+      ]
+    }
+  },
+  "rumore": {
+    "totale": 44, "testo": "Archiviate e tolte dalla inbox, come da tua scelta.",
+    "split": [{"n": 40, "etichetta": "Promo"}, {"n": 2, "etichetta": "Newsletter"}, {"n": 2, "etichetta": "Social"}]
+  },
+  "footer": "Nessuna prenotazione nei prossimi 14 giorni. Nessun avviso di sicurezza."
+}
