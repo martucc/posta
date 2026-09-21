@@ -24,6 +24,7 @@ on:
 permissions:
   contents: write   # committare index.html
   pages: read       # leggere l'esito del deploy, non per pubblicare
+  id-token: write   # l'autenticazione OAuth della claude-code-action lo richiede
 
 concurrency:
   group: posta
@@ -85,6 +86,18 @@ jobs:
       # ─── Claude decide, ma non ha le chiavi di niente ───
       # Non ha accesso a Gmail, a git, alla rete. Scrive due file JSON e basta:
       # la pagina la costruisce uno script, le modifiche a Gmail le fa un altro.
+      # L'action accetta solo `prompt` come testo, non un percorso: le istruzioni
+      # restano in un file loro e le passiamo di qui.
+      - if: steps.guardia.outputs.esegui == 'si'
+        id: istruzioni
+        name: Carica le istruzioni
+        run: |
+          {
+            echo 'testo<<FINE_ISTRUZIONI'
+            cat scripts/istruzioni.md
+            echo 'FINE_ISTRUZIONI'
+          } >> "$GITHUB_OUTPUT"
+
       - if: steps.guardia.outputs.esegui == 'si'
         id: claude
         uses: anthropics/claude-code-action@v1
@@ -95,7 +108,7 @@ jobs:
             --model claude-opus-5
             --max-turns 30
             --allowedTools "Read,Write"
-          prompt_file: scripts/istruzioni.md
+          prompt: ${{ steps.istruzioni.outputs.testo }}
 
       # ─── Niente di quello che Claude ha fatto fuori da lavoro/ sopravvive ───
       # Se una mail fosse riuscita a fargli modificare uno script, quello script
