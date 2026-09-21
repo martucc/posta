@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="it">
+<head>
+<title>Termini di servizio · Posta della sera</title>
+<meta name="description" content="Termini d'uso di Posta della sera, strumento personale a utente singolo.">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F0F10">
+<link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=DM+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#0F0F10; --card:#1B1B1E; --line:#2A2A2D;
+    --ink:#F2F0EA; --dim:#C9C6BE; --faint:#A09D95; --dark:#121212;
+    --orange:#FF5A2B;
+    --ui:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+    --mono:"DM Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;overflow-x:hidden}
+  body{background:var(--bg);color:var(--ink);font:400 15px/1.6 var(--ui);
+    -webkit-font-smoothing:antialiased;padding-bottom:48px}
+  .page{max-width:680px;margin:0 auto;padding:20px 18px}
+  a{color:var(--orange)}
+  .brandline{display:flex;align-items:center;gap:9px;margin-bottom:28px;min-height:44px}
+  .mark{width:20px;height:20px;flex:none;color:var(--orange)}
+  .brand{font:800 18px/1 var(--ui);letter-spacing:-.02em;color:var(--ink);text-decoration:none}
+  h1{font:800 clamp(30px,8vw,44px)/1.02 var(--ui);letter-spacing:-.04em;margin:0 0 10px;max-width:16ch}
+  .dateline{font:400 12px/1.7 var(--mono);color:var(--faint);margin:0 0 32px}
+  h2{font:800 20px/1.2 var(--ui);letter-spacing:-.02em;margin:32px 0 8px}
+  p{margin:0 0 12px;color:var(--dim)}
+  p strong{color:var(--ink);font-weight:600}
+  ul{margin:0 0 12px;padding-left:20px;color:var(--dim)}
+  li{margin-bottom:6px}
+  .box{background:var(--card);border-radius:18px;padding:16px 18px;margin:16px 0}
+  .box p:last-child{margin-bottom:0}
+  footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--card);
+    font:400 12px/1.75 var(--mono);color:var(--faint)}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="brandline">
+    <svg class="mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="2.4" y="5.6" width="19.2" height="12.8" rx="2" stroke="currentColor" stroke-width="2"/>
+      <path d="M3.8 6.9L12 13.2l8.2-6.3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <a class="brand" href="./">Posta della sera</a>
+  </div>
+
+  <h1>Termini di servizio</h1>
+  <p class="dateline">Aggiornati il 22 settembre 2026 · Posta della sera</p>
+
+  <div class="box">
+    <p><strong>In una riga:</strong> è uno strumento personale, gratuito, usato da una
+    sola persona. Non è un servizio offerto al pubblico e non viene fornita alcuna
+    garanzia.</p>
+  </div>
+
+  <h2>Cos'è</h2>
+  <p>«Posta della sera» è un'automazione privata che ogni sera legge la casella Gmail
+  del suo proprietario, etichetta i messaggi e pubblica un riepilogo su una pagina web.
+  È sviluppata e usata da Nicolò Martuccio per sé.</p>
+
+  <h2>Chi può usarlo</h2>
+  <p>Un solo account Google, quello del proprietario, che autorizza l'accesso
+  esplicitamente tramite OAuth. Non sono previste registrazioni, non esistono altri
+  utenti e nessun terzo può collegare la propria casella.</p>
+
+  <h2>Nessuna garanzia</h2>
+  <p>Il servizio è fornito «così com'è». Può interrompersi, sbagliare una
+  classificazione o non essere aggiornato. Non viene data alcuna garanzia di
+  disponibilità, accuratezza o adeguatezza a uno scopo, e non è assunta alcuna
+  responsabilità per decisioni prese sulla base del riepilogo. Le informazioni in
+  pagina vanno sempre verificate nell'email originale, a cui ogni riquadro rimanda.</p>
+
+  <h2>Cosa non fa</h2>
+  <ul>
+    <li>non risponde alle email e non le inoltra;</li>
+    <li>non invia messaggi a destinatari diversi dal proprietario;</li>
+    <li>non cancella messaggi, salvo le newsletter di un mittente configurato
+      esplicitamente, che vengono spostate nel cestino;</li>
+    <li>non modifica le impostazioni dell'account Google.</li>
+  </ul>
+
+  <h2>Interruzione</h2>
+  <p>Il proprietario può fermare l'automazione in qualsiasi momento disattivando il
+  workflow o revocando l'accesso OAuth. Il progetto può essere modificato o dismesso
+  senza preavviso.</p>
+
+  <h2>Privacy</h2>
+  <p>Il trattamento dei dati è descritto nell'<a href="privacy.html">informativa
+  privacy</a>.</p>
+
+  <footer>
+    Posta della sera · progetto personale di Nicolò Martuccio · Lugo (RA)<br>
+    <a href="./">Torna al riepilogo</a> · <a href="privacy.html">Informativa privacy</a>
+  </footer>
+
+</div>
+</body>
+</html>

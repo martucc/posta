@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="it">
+<head>
+<title>Informativa privacy · Posta della sera</title>
+<meta name="description" content="Come Posta della sera tratta i dati della casella Gmail del suo proprietario.">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F0F10">
+<link rel="icon" href="icon-192.png" sizes="192x192" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=DM+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#0F0F10; --card:#1B1B1E; --line:#2A2A2D;
+    --ink:#F2F0EA; --dim:#C9C6BE; --faint:#A09D95; --dark:#121212;
+    --orange:#FF5A2B;
+    --ui:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+    --mono:"DM Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;overflow-x:hidden}
+  body{background:var(--bg);color:var(--ink);font:400 15px/1.6 var(--ui);
+    -webkit-font-smoothing:antialiased;padding-bottom:48px}
+  .page{max-width:680px;margin:0 auto;padding:20px 18px}
+  a{color:var(--orange)}
+  .brandline{display:flex;align-items:center;gap:9px;margin-bottom:28px;min-height:44px}
+  .mark{width:20px;height:20px;flex:none;color:var(--orange)}
+  .brand{font:800 18px/1 var(--ui);letter-spacing:-.02em;color:var(--ink);text-decoration:none}
+  h1{font:800 clamp(30px,8vw,44px)/1.02 var(--ui);letter-spacing:-.04em;margin:0 0 10px;max-width:16ch}
+  .dateline{font:400 12px/1.7 var(--mono);color:var(--faint);margin:0 0 32px}
+  h2{font:800 20px/1.2 var(--ui);letter-spacing:-.02em;margin:32px 0 8px}
+  p{margin:0 0 12px;color:var(--dim)}
+  p strong{color:var(--ink);font-weight:600}
+  ul{margin:0 0 12px;padding-left:20px;color:var(--dim)}
+  li{margin-bottom:6px}
+  .box{background:var(--card);border-radius:18px;padding:16px 18px;margin:16px 0}
+  .box p:last-child{margin-bottom:0}
+  footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--card);
+    font:400 12px/1.75 var(--mono);color:var(--faint)}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="brandline">
+    <svg class="mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="2.4" y="5.6" width="19.2" height="12.8" rx="2" stroke="currentColor" stroke-width="2"/>
+      <path d="M3.8 6.9L12 13.2l8.2-6.3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <a class="brand" href="./">Posta della sera</a>
+  </div>
+
+  <h1>Informativa privacy</h1>
+  <p class="dateline">Aggiornata il 22 settembre 2026 · Posta della sera</p>
+
+  <div class="box">
+    <p><strong>In una riga:</strong> è un progetto personale con un solo utente, il
+    proprietario dell'account. Legge la sua casella Gmail per costruirgli un riepilogo
+    della giornata. Non raccoglie dati di nessun altro e non li condivide con nessuno.</p>
+  </div>
+
+  <h2>Chi tratta i dati</h2>
+  <p>Nicolò Martuccio, Lugo (RA), Italia. Contatto: <a href="mailto:2005niky@gmail.com">2005niky@gmail.com</a>.
+  L'applicazione non è un servizio offerto a terzi: è uno strumento privato, e l'unico
+  account autorizzato è quello del titolare.</p>
+
+  <h2>Quali dati vengono letti</h2>
+  <p>Tramite le API di Gmail, con l'autorizzazione esplicita del proprietario
+  dell'account, l'applicazione legge:</p>
+  <ul>
+    <li>i messaggi arrivati nelle ultime 24 ore;</li>
+    <li>i messaggi relativi a ordini e spedizioni degli ultimi 21 giorni;</li>
+    <li>mittente, oggetto, data, identificativi del messaggio e del thread, etichette
+      e, dove serve al riepilogo, una porzione del testo.</li>
+  </ul>
+  <p>Non vengono letti allegati, né messaggi al di fuori di questi due insiemi.</p>
+
+  <h2>Cosa viene fatto con quei dati</h2>
+  <p>I messaggi vengono classificati per assegnare loro un'etichetta Gmail fra quelle
+  che già esistono nell'account, e riassunti in una pagina web. L'elaborazione avviene
+  dentro un'esecuzione di GitHub Actions che dura pochi minuti e viene distrutta
+  al termine: <strong>non esiste alcun database</strong> e nessuna copia della posta
+  viene conservata.</p>
+  <p>Le uniche scritture su Gmail sono: aggiungere un'etichetta a un messaggio, spostare
+  nel cestino le newsletter di un mittente specifico configurato dal proprietario, e
+  inviare un'email di riepilogo al proprietario stesso. Nessuna risposta automatica,
+  nessun inoltro, nessuna email ad altri destinatari.</p>
+
+  <h2>Cosa finisce sulla pagina pubblica</h2>
+  <p>La pagina del riepilogo è pubblica. Per questo un controllo automatico blocca la
+  pubblicazione se il testo contiene un IBAN, un numero di carta, un codice OTP, una
+  password o un token: in quel caso la pagina non viene aggiornata affatto. Numeri di
+  tracking e ultime quattro cifre sono ammessi.</p>
+
+  <h2>Con chi vengono condivisi</h2>
+  <p>Con nessuno, a scopo commerciale o di profilazione. Per funzionare, i dati
+  transitano da due fornitori:</p>
+  <ul>
+    <li><strong>GitHub</strong> — esegue l'automazione e ospita la pagina;</li>
+    <li><strong>Anthropic</strong> — il modello linguistico che classifica i messaggi
+      e scrive il riepilogo.</li>
+  </ul>
+  <p>Nessun dato viene venduto, ceduto o usato per pubblicità.</p>
+
+  <h2>Conservazione</h2>
+  <p>I log di esecuzione restano su GitHub per 7 giorni e non contengono il contenuto
+  delle email. Le credenziali di accesso sono custodite nei secret cifrati del
+  repository e non compaiono nei log né nella pagina.</p>
+
+  <h2>Uso limitato dei dati Google</h2>
+  <div class="box">
+    <p>L'uso che questa applicazione fa delle informazioni ricevute dalle API di Google
+    aderisce alla <a href="https://developers.google.com/terms/api-services-user-data-policy"
+    target="_blank" rel="noopener">Google API Services User Data Policy</a>, compresi i
+    requisiti di Limited Use. I dati Gmail non vengono usati per addestrare modelli,
+    non vengono ceduti a terzi e non vengono impiegati per pubblicità.</p>
+  </div>
+
+  <h2>Revocare l'accesso</h2>
+  <p>Il proprietario dell'account può revocare in qualsiasi momento l'autorizzazione
+  da <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">
+  myaccount.google.com/permissions</a>. Da quel momento l'automazione smette di
+  funzionare e non ha più alcun accesso alla posta.</p>
+
+  <footer>
+    Posta della sera · progetto personale di Nicolò Martuccio · Lugo (RA)<br>
+    <a href="./">Torna al riepilogo</a> · <a href="termini.html">Termini di servizio</a>
+  </footer>
+
+</div>
+</body>
+</html>
