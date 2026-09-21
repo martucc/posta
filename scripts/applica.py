@@ -14,7 +14,7 @@ import os
 import sys
 from email.mime.text import MIMEText
 
-from gmail import (CESTINO, DRY_RUN, ME, PAGINA, RUMORE, SALVAGENTE, Configurazione,
+from gmail import (ARCHIVIA, CESTINO, DRY_RUN, ME, PAGINA, RUMORE, SALVAGENTE, Configurazione,
                    mappa_etichette, pulisci_oggetto, riprova, service)
 
 MARCATORE = "posta-della-sera"
@@ -74,7 +74,10 @@ def etichette_da_applicare(azioni, messaggi, agibili, mappa):
 
 
 def decidi_archivio(mid, messaggi, scelte):
-    """Rumore si', ma non se dentro c'e' qualcosa di operativo."""
+    """Rumore si', ma non se dentro c'e' qualcosa di operativo — e solo se
+    l'archiviazione e' accesa, che di default non lo e'."""
+    if not ARCHIVIA:
+        return False
     m = messaggi[mid]
     finali = set(m.get("etichette", [])) | scelte.get(mid, set())
     if not m.get("in_inbox"):
@@ -124,8 +127,9 @@ def main(cartella):
     da_archiviare = [mid for mid in da_archiviare if mid not in da_cestinare]
 
     quante = sum(len(v) for v in scelte.values())
+    nota = "" if ARCHIVIA else " (archiviazione spenta: restano in inbox)"
     print(f"{quante} etichette su {len(scelte)} messaggi, "
-          f"{len(da_archiviare)} da archiviare, {len(da_cestinare)} nel cestino")
+          f"{len(da_archiviare)} da archiviare{nota}, {len(da_cestinare)} nel cestino")
 
     if DRY_RUN:
         for mid, nomi in sorted(scelte.items()):

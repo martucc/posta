@@ -71,23 +71,34 @@ def test_la_parola_tldr_nel_corpo_non_basta():
 
 # ─────────── 3. archiviazione ───────────
 
-def test_archivia_il_rumore():
+def test_di_default_non_archivia_niente():
+    """Scelta di Martucc: le mail vengono etichettate e basta, restano in inbox."""
+    m = msg("a", etichette=["Promo/Moda"])
+    assert applica.ARCHIVIA is False
+    assert applica.decidi_archivio("a", {"a": m}, {}) is False
+
+
+def test_archivia_il_rumore_se_acceso(monkeypatch):
+    monkeypatch.setattr(applica, "ARCHIVIA", True)
     m = msg("a", etichette=["Promo/Moda"])
     assert applica.decidi_archivio("a", {"a": m}, {}) is True
 
 
-def test_non_archivia_se_dentro_c_e_un_ordine():
-    """Promo + conferma d'ordine: resta in inbox."""
+def test_non_archivia_se_dentro_c_e_un_ordine(monkeypatch):
+    """Promo + conferma d'ordine: resta in inbox anche ad archiviazione accesa."""
+    monkeypatch.setattr(applica, "ARCHIVIA", True)
     m = msg("a", etichette=["Promo", "Ordini/Confermati"])
     assert applica.decidi_archivio("a", {"a": m}, {}) is False
 
 
-def test_non_archivia_quello_che_non_e_in_inbox():
+def test_non_archivia_quello_che_non_e_in_inbox(monkeypatch):
+    monkeypatch.setattr(applica, "ARCHIVIA", True)
     m = msg("a", etichette=["Promo"], in_inbox=False, labelIds=[])
     assert applica.decidi_archivio("a", {"a": m}, {}) is False
 
 
-def test_archivia_anche_con_etichetta_appena_proposta():
+def test_archivia_anche_con_etichetta_appena_proposta(monkeypatch):
+    monkeypatch.setattr(applica, "ARCHIVIA", True)
     m = msg("a")
     assert applica.decidi_archivio("a", {"a": m}, {"a": {"Social"}}) is True
 

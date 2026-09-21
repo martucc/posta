@@ -55,15 +55,14 @@ non proporre niente: una mail senza etichetta è meglio di una mail etichettata 
 Se ha già l'etichetta giusta, non riproporla. Più etichette sulla stessa mail solo se è
 davvero giustificato.
 
-Dopo di te, e non tu:
+**Le mail non vengono archiviate.** Restano tutte in inbox: il tuo lavoro è
+etichettarle, non spostarle. L'unica eccezione è il cestino, e non la decidi tu:
+uno script cestina le mail il cui `fromAddress` è nella lista dei mittenti configurati.
+La parola "TLDR" nel corpo di una mail qualsiasi non conta niente.
 
-- uno script **archivia** (toglie da INBOX, non cancella) le mail recenti che risultano
-  Promo, Promo/*, Social o Scommesse — a meno che non abbiano anche Ordini/*, Sicurezza,
-  Soldi/*, Viaggi o Lavoro/*, nel qual caso restano in inbox;
-- uno script **cestina** solo le mail il cui `fromAddress` è nella lista dei mittenti
-  configurati. La parola "TLDR" nel corpo di una mail qualsiasi non conta niente.
-
-Conta tu quante ne rientrerebbero: è il rumore della serata, e va nei contatori.
+Conta comunque quante mail sono Promo, Promo/*, Social o Scommesse: è il rumore della
+serata e va nei contatori e nella sezione Rumore. Nel campo `rumore.testo` scrivi che
+sono state **etichettate e lasciate in inbox**, non che sono state archiviate.
 
 ## Passo 4 — Pacchi
 
@@ -97,7 +96,7 @@ validazione; i campi opzionali si omettono, non si mettono vuoti.
     "progetti": {"voci": []},
     "lavoro":   {"voci": []}
   },
-  "rumore": {"totale": 44, "testo": "Archiviate e tolte dalla inbox.",
+  "rumore": {"totale": 44, "testo": "Etichettate e lasciate in inbox.",
              "split": [{"n": 40, "etichetta": "Promo"}, {"n": 4, "etichetta": "Social"}]},
   "footer": "Nessuna prenotazione nei prossimi 14 giorni."
 }

@@ -40,9 +40,14 @@ ETICHETTE = [
     "Social", "Scommesse", "Personale", "Studio", "Salute",
 ]
 
-# Quelle che, da sole, fanno di una mail del rumore da archiviare.
+# Quelle che fanno di una mail del rumore. Servono a contarlo in pagina;
+# l'archiviazione e' un'altra cosa e si accende a parte.
 RUMORE = {"Promo", "Promo/Moda", "Promo/Beauty", "Promo/Sport", "Promo/Tech",
           "Social", "Scommesse"}
+
+# Archiviare il rumore e' SPENTO: le mail restano in inbox, etichettate.
+# Per accenderlo, variabile di repo ARCHIVIA_RUMORE=si.
+ARCHIVIA = os.environ.get("ARCHIVIA_RUMORE", "").strip().lower() in {"1", "true", "si", "yes"}
 
 # Se una mail ha anche una di queste, resta in inbox anche se e' promozionale:
 # una conferma d'ordine dentro una newsletter di negozio vale piu' della promo.
