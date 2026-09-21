@@ -160,8 +160,15 @@ jobs:
       - if: steps.guardia.outputs.esegui == 'si' && steps.pagina.outputs.esito == 'pronta' && !inputs.dry_run
         id: commit
         name: Pubblica solo index.html
+        env:
+          TOKEN_PUSH: ${{ github.token }}
         run: |
           set -euo pipefail
+          # claude-code-action rimpiazza le credenziali git del checkout con le
+          # sue, che muoiono quando l'action finisce: il push si becca un
+          # "Invalid username or token". Rimettiamo quelle del job.
+          git remote set-url origin \
+            "https://x-access-token:${TOKEN_PUSH}@github.com/${GITHUB_REPOSITORY}.git"
           if git diff --quiet -- index.html; then
             echo "nessuna modifica alla pagina"
             echo "esito=invariata" >> "$GITHUB_OUTPUT"
@@ -176,6 +183,7 @@ jobs:
             commit -m "Riepilogo del $(TZ=Europe/Rome date +%d.%m.%Y)"
           for tentativo in 1 2 3; do
             if git push; then
+              echo "pagina pubblicata: $(git rev-parse --short HEAD)"
               echo "esito=pubblicata" >> "$GITHUB_OUTPUT"
               exit 0
             fi
