@@ -225,6 +225,38 @@ def test_un_segreto_vero_blocca_ancora():
             dati.valida(d)
 
 
+def test_troppe_categorie_di_rumore_non_buttano_la_pagina():
+    """Il caso del 23 settembre: sei categorie di rumore e il validatore
+    rifiutava la pagina intera. Ora le ultime diventano 'Altro' e i conti tornano."""
+    d = json.loads(json.dumps(ESEMPIO))
+    categorie = [("Promo", 30), ("Promo/Moda", 12), ("Social", 8),
+                 ("Promo/Sport", 5), ("Newsletter", 3), ("Scommesse", 1)]
+    d["rumore"]["split"] = [{"n": n, "etichetta": e} for e, n in categorie]
+    d["rumore"]["totale"] = sum(n for _, n in categorie)
+    pulito = dati.valida(d)
+    split = pulito["rumore"]["split"]
+    assert len(split) == 4
+    assert split[-1] == {"n": 9, "etichetta": "Altro"}
+    assert sum(v["n"] for v in split) == d["rumore"]["totale"]
+    assert controlla_pagina.controlla(rendi.rendi(TEMPLATE, d), TEMPLATE) == []
+
+
+def test_troppi_bottoni_si_tagliano_non_si_rifiutano():
+    d = json.loads(json.dumps(ESEMPIO))
+    d["sezioni"]["pacchi"]["voci"][0]["azioni"] = [
+        {"testo": f"Link {i}", "url": f"https://example.com/{i}"} for i in range(6)]
+    pulito = dati.valida(d)
+    assert len(pulito["sezioni"]["pacchi"]["voci"][0]["azioni"]) == 3
+
+
+def test_la_sicurezza_invece_rifiuta_ancora():
+    """Tagliare vale per l'estetica, non per la verita' o i segreti."""
+    d = json.loads(json.dumps(ESEMPIO))
+    d["sezioni"]["pacchi"]["voci"][0]["azioni"] = [{"testo": "X", "url": "javascript:alert(1)"}]
+    with pytest.raises(dati.Errore):
+        dati.valida(d)
+
+
 def test_una_sezione_vuota_sparisce():
     d = json.loads(json.dumps(ESEMPIO))
     d["sezioni"]["viaggi"] = {"voci": []}

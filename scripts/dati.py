@@ -49,6 +49,15 @@ class Errore(ValueError):
     """Dati non validi: il messaggio dice il campo e il perche'."""
 
 
+def troppi(lista, massimo, dove):
+    """Le liste troppo lunghe si accorciano con un avviso nel log. Una pagina
+    con un bottone in meno e' meglio di nessuna pagina."""
+    if len(lista) > massimo:
+        print(f"AVVISO: {dove} aveva {len(lista)} voci, tengo le prime {massimo}")
+        return lista[:massimo]
+    return lista
+
+
 def _campo(dove, chiave):
     return f"{dove}.{chiave}" if dove else chiave
 
@@ -135,8 +144,9 @@ def route(valore, dove):
 def meta(valore, dove):
     if not valore:
         return []
-    if not isinstance(valore, list) or len(valore) > 4:
-        raise Errore(f"{dove}: al massimo 4 voci di meta")
+    if not isinstance(valore, list):
+        raise Errore(f"{dove}: dev'essere una lista")
+    valore = troppi(valore, 4, dove)
     out = []
     for i, m in enumerate(valore):
         d = _campo(dove, f"[{i}]")
@@ -152,8 +162,9 @@ def meta(valore, dove):
 def azioni(valore, dove):
     if not valore:
         return []
-    if not isinstance(valore, list) or len(valore) > 3:
-        raise Errore(f"{dove}: al massimo 3 bottoni")
+    if not isinstance(valore, list):
+        raise Errore(f"{dove}: dev'essere una lista")
+    valore = troppi(valore, 3, dove)
     out = []
     for i, a in enumerate(valore):
         d = _campo(dove, f"[{i}]")
@@ -208,8 +219,7 @@ def sezione(valore, nome):
     voci = valore.get("voci") or []
     if not isinstance(voci, list):
         raise Errore(f"sezioni.{nome}.voci: dev'essere una lista")
-    if len(voci) > 12:
-        raise Errore(f"sezioni.{nome}: troppe voci ({len(voci)}), massimo 12")
+    voci = troppi(voci, 12, f"sezioni.{nome}")
     if not voci:
         return None  # Una sezione vuota non va in pagina: sparisce e basta.
     return {
@@ -245,15 +255,22 @@ def rumore(valore):
     if not isinstance(valore, dict):
         raise Errore("rumore: dev'essere un oggetto")
     split = valore.get("split") or []
-    if not isinstance(split, list) or len(split) > 4:
-        raise Errore("rumore.split: al massimo 4 voci")
+    if not isinstance(split, list):
+        raise Errore("rumore.split: dev'essere una lista")
     voci = []
     for i, s in enumerate(split):
         d = f"rumore.split[{i}]"
+        if not isinstance(s, dict):
+            raise Errore(f"{d}: dev'essere un oggetto")
         voci.append({
             "n": intero(s.get("n"), _campo(d, "n")),
             "etichetta": testo(s.get("etichetta"), _campo(d, "etichetta"), 18),
         })
+    if len(voci) > 4:
+        voci.sort(key=lambda v: v["n"], reverse=True)
+        resto = sum(v["n"] for v in voci[3:])
+        print(f"AVVISO: rumore.split aveva {len(voci)} categorie, le ultime diventano 'Altro'")
+        voci = voci[:3] + [{"n": resto, "etichetta": "Altro"}]
     return {
         "totale": intero(valore.get("totale"), "rumore.totale"),
         "testo": testo(valore.get("testo"), "rumore.testo", 200),
