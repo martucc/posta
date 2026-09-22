@@ -134,13 +134,16 @@ jobs:
           set -euo pipefail
           mkdir -p lavoro
           cp index.html lavoro/index.precedente.html
+          ls -la lavoro/ || true
           if [ ! -s lavoro/giornata.json ]; then
+            echo "ESITO: giornata.json assente o vuoto"
             echo "esito=assente" >> "$GITHUB_OUTPUT"
             echo "Riepilogo non generato: la pagina resta quella di ieri." > lavoro/esito_pagina.txt
             exit 0
           fi
           if ! python scripts/rendi.py index.html lavoro/giornata.json lavoro/index.nuova.html \
                > lavoro/rendi.log 2>&1; then
+            echo "ESITO: dati non validi"; cat lavoro/rendi.log
             echo "esito=dati-non-validi" >> "$GITHUB_OUTPUT"
             echo "Pagina non aggiornata, dati non validi: $(tail -n 2 lavoro/rendi.log | tr '\n' ' ')" \
               > lavoro/esito_pagina.txt
@@ -148,23 +151,42 @@ jobs:
           fi
           if ! python scripts/controlla_pagina.py lavoro/index.nuova.html lavoro/index.precedente.html \
                > lavoro/controllo.log 2>&1; then
+            echo "ESITO: controllo fallito"; cat lavoro/controllo.log
             echo "esito=controllo-fallito" >> "$GITHUB_OUTPUT"
             echo "Pagina NON pubblicata: $(cat lavoro/controllo.log)" > lavoro/esito_pagina.txt
             exit 0
           fi
           cp lavoro/index.nuova.html index.html
+          echo "ESITO: pronta, $(wc -c < index.html) byte"
           echo "esito=pronta" >> "$GITHUB_OUTPUT"
 
-      - if: steps.guardia.outputs.esegui == 'si' && steps.pagina.outputs.esito == 'pronta' && !inputs.dry_run
+      - if: steps.guardia.outputs.esegui == 'si'
+        name: Decisione sulla pubblicazione
+        run: |
+          echo "esito pagina: '${{ steps.pagina.outputs.esito }}'"
+          echo "dry run: '${{ inputs.dry_run }}'"
+          echo "evento: ${{ github.event_name }}"
+
+      - if: steps.guardia.outputs.esegui == 'si' && steps.pagina.outputs.esito == 'pronta' && inputs.dry_run != true
         id: commit
         name: Pubblica solo index.html
         env:
           TOKEN_PUSH: ${{ github.token }}
         run: |
           set -euo pipefail
-          # claude-code-action rimpiazza le credenziali git del checkout con le
-          # sue, che muoiono quando l'action finisce: il push si becca un
-          # "Invalid username or token". Rimettiamo quelle del job.
+          # claude-code-action lascia le proprie credenziali git: un token scaduto
+          # quando l'action finisce, e per giunta legato a un altro insieme di
+          # repository ("not in this session's authorized repository set", 403).
+          # Un header di autenticazione vince sull'URL, quindi prima si toglie
+          # tutto, poi si rimette il token del job.
+          for ambito in --local --global --system; do
+            git config $ambito --unset-all http.https://github.com/.extraheader 2>/dev/null || true
+            git config $ambito --unset-all http.extraheader 2>/dev/null || true
+            git config $ambito --unset-all credential.helper 2>/dev/null || true
+          done
+          echo "credenziali residue:"
+          git config --list --show-origin 2>/dev/null \
+            | grep -iE 'extraheader|credential|url\.' | sed 's/=.*/=***/' || echo "  nessuna"
           git remote set-url origin \
             "https://x-access-token:${TOKEN_PUSH}@github.com/${GITHUB_REPOSITORY}.git"
           if git diff --quiet -- index.html; then
@@ -186,11 +208,13 @@ jobs:
               exit 0
             fi
             echo "push fallito, riprovo dopo un rebase ($tentativo)"
+            git push 2> lavoro/push.log || true
             git pull --rebase --autostash || true
             sleep $((tentativo * 5))
           done
           echo "esito=push-fallito" >> "$GITHUB_OUTPUT"
-          echo "Commit riuscito ma push fallito: la pagina online e' quella di ieri." \
+          motivo=$(tail -n 2 lavoro/push.log 2>/dev/null | tr '\n' ' ' | cut -c1-160)
+          echo "Commit fatto ma push fallito, la pagina online e' quella di ieri: $motivo" \
             > lavoro/esito_pagina.txt
 
       # ─── Il commit non e' la pubblicazione: lo verifichiamo davvero ───
