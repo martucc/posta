@@ -7,6 +7,8 @@ e ogni errore e' un messaggio in italiano che dice dove guardare.
 
 import re
 
+from controlla_pagina import controlla_segreti, iban_valido
+
 TAPPE = 4
 STILI_TAG = {"ok", "go", "warn", "crit"}
 STILI_IMPORTO = {"in", "out", "zero"}
@@ -41,8 +43,18 @@ VIETATO = re.compile(
     r"|(?:\bya29\.[A-Za-z0-9._-]{20,})"
     r"|(?:\bAIza[A-Za-z0-9_-]{30,})"
     r"|(?:\bsk-[A-Za-z0-9]{20,})"
-    r"|(?:\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,})"
-    r"|(?:\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b)", re.I)
+    r"|(?:\bsk-ant-[A-Za-z0-9_-]{20,})"
+    r"|(?:\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,})", re.I)
+
+# Un IBAN e' un segreto solo se il checksum torna: "LP00612345678901" e' un
+# tracking Cainiao con la forma di un IBAN, e bloccava la pagina intera.
+FORMA_IBAN = re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b", re.I)
+
+
+def segreto(v):
+    if VIETATO.search(v):
+        return True
+    return any(iban_valido(m.group(0).upper()) for m in FORMA_IBAN.finditer(v))
 
 
 class Errore(ValueError):
@@ -70,6 +82,8 @@ def accorcia(v, massimo):
     if spazio >= massimo // 2:
         corto = corto[:spazio]
     corto = corto.rstrip(" ,;:.-–—") or v[:massimo - 1]
+    if corto.endswith("*") and not corto.endswith("**"):
+        corto = corto[:-1]  # taglio fra i due asterischi di chiusura
     if corto.count("**") % 2:
         i = corto.rfind("**")
         corto = corto[:i] + corto[i + 2:]
@@ -86,12 +100,19 @@ def testo(valore, dove, massimo=600, obbligatorio=True):
     if not isinstance(valore, str) or not valore.strip():
         raise Errore(f"{dove}: manca il testo")
     v = valore.strip()
-    if VIETATO.search(v):
+    if segreto(v):
         raise Errore(f"{dove}: contiene una parola vietata in pagina pubblica")
     if len(v) > massimo:
+        # Il controllo della pagina vede solo il testo gia' tagliato: un IBAN
+        # o una carta scritti a gruppi, tagliati a meta', gli sfuggirebbero.
+        # Quindi i suoi controlli girano qui, sul testo intero.
+        problemi = []
+        controlla_segreti(v, problemi)
+        if problemi:
+            raise Errore(f"{dove}: contiene una parola vietata in pagina pubblica ({problemi[0]})")
         print(f"AVVISO: {dove} era lungo {len(v)} caratteri, accorciato a {massimo}")
         v = accorcia(v, massimo)
-        if VIETATO.search(v):
+        if segreto(v):
             raise Errore(f"{dove}: contiene una parola vietata in pagina pubblica")
     return v
 
@@ -109,7 +130,7 @@ def url(valore, dove, obbligatorio=True):
         return None
     if not isinstance(valore, str) or not URL_OK.match(valore):
         raise Errore(f"{dove}: serve un URL https valido")
-    if VIETATO.search(valore):
+    if segreto(valore):
         raise Errore(f"{dove}: l'URL sembra contenere un token o una credenziale")
     return valore
 

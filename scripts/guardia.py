@@ -17,11 +17,14 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 INIZIO_SERA = 20   # da quest'ora parte la serata di oggi
-FINE_NOTTE = 6     # fino a quest'ora e' ancora la serata di ieri
+FINE_NOTTE = 6     # fino a quest'ora il cron vale ancora per la serata di ieri
 
 
 def serata_di(adesso):
-    if adesso.hour < FINE_NOTTE:
+    """Prima delle 20 la serata di oggi non e' ancora cominciata: qualunque
+    corsa, anche a mano alle 15, lavora sulla serata di ieri. Se prendesse la
+    data di oggi, le corse vere di stasera la troverebbero gia' pubblicata."""
+    if adesso.hour < INIZIO_SERA:
         return (adesso - timedelta(days=1)).date()
     return adesso.date()
 

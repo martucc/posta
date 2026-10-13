@@ -11,10 +11,13 @@ token, un limite d'uso o il modello. Da qui esce solo il motivo:
   - altrimenti diciamo solo tipo di fine e numero di turni.
 
 Non fallisce mai: e' diagnostica, non deve fermare il resto della serata.
-Uso: perche_claude.py <execution_file> <file_di_uscita>
+Il motivo va nell'output `motivo` del passo, non in un file: in lavoro/ puo'
+scrivere anche Claude, e un file suo finirebbe nel log pubblico.
+Uso: perche_claude.py <execution_file>
 """
 
 import json
+import os
 import re
 import sys
 
@@ -61,26 +64,30 @@ def motivo(lista):
     # Non e' partito: quello che c'e' e' l'errore dell'API.
     errori = [pulisci(m.get("error")) for m in lista
               if isinstance(m, dict) and isinstance(m.get("error"), str)]
+    # Quando la CLI muore prima di partire scrive i motivi in `errors`.
+    errori += [pulisci(x) for x in (risultato.get("errors") or []) if isinstance(x, str)]
     testo = pulisci(risultato.get("result"))
     stato = risultato.get("api_error_status")
     dettagli = "; ".join(x for x in [f"HTTP {stato}" if stato else "", *errori, testo] if x)
     return "Claude non e' partito: " + (dettagli or f"errore senza messaggio ({tipo})")
 
 
-def main(percorso, uscita):
+def main(percorso, uscita=None):
     try:
         riga = motivo(messaggi(percorso))
     except Exception as errore:  # la diagnostica non deve mai rompere la serata
         riga = f"Claude si e' fermato, motivo illeggibile ({type(errore).__name__})"
+    riga = riga.replace("\n", " ").replace("\r", " ")
     print(riga)
-    try:
-        with open(uscita, "w", encoding="utf-8") as f:
-            f.write(riga + "\n")
-    except OSError:
-        pass
+    uscita = uscita or os.environ.get("GITHUB_OUTPUT")
+    if uscita:
+        try:
+            with open(uscita, "a", encoding="utf-8") as f:
+                f.write(f"motivo={riga}\n")
+        except OSError:
+            pass
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "",
-                  sys.argv[2] if len(sys.argv) > 2 else "/dev/null"))
+    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else ""))

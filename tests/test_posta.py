@@ -452,9 +452,13 @@ def test_di_giorno_il_cron_non_parte():
         assert not esegui
 
 
-def test_a_mano_si_parte_a_qualsiasi_ora():
+def test_a_mano_si_parte_a_qualsiasi_ora_e_prima_delle_20_vale_ieri():
+    """Una corsa a mano alle 15 rifa' la serata di ieri: se prendesse la data di
+    oggi, stasera tutte le corse del cron la troverebbero gia' pubblicata."""
     giorno, _, esegui, _ = guardia.decidi(ore(2026, 10, 13, 15, 0), "workflow_dispatch", False, set())
-    assert esegui and giorno.isoformat() == "2026-10-13"
+    assert esegui and giorno.isoformat() == "2026-10-12"
+    giorno, _, _, _ = guardia.decidi(ore(2026, 10, 13, 20, 30), "workflow_dispatch", False, set())
+    assert giorno.isoformat() == "2026-10-13"
 
 
 def test_forza_ripubblica_anche_se_gia_fatta():
@@ -513,3 +517,106 @@ def test_senza_file_di_esecuzione_non_si_rompe(tmp_path):
     uscita = tmp_path / "esito.txt"
     assert perche_claude.main(str(tmp_path / "manca.json"), str(uscita)) == 0
     assert "nessun file" in uscita.read_text()
+
+
+def test_la_finestra_non_lascia_buchi_fra_corse_a_orari_diversi():
+    """Il 12 alle 20:17, poi la serata del 13 alle 2:06 del 14: con 24 ore secche
+    le mail del 12 fra le 20:17 e le 2:06 del 13 non le leggeva nessuno."""
+    giorno = leggi_posta.giorno_della_serata(ore(2026, 10, 14, 2, 6), "2026-10-13")
+    inizio = leggi_posta.inizio_finestra(ore(2026, 10, 14, 2, 6), giorno)
+    assert inizio == ore(2026, 10, 12, 20, 0)
+    # di sera, all'ora giusta, resta come prima: 24 ore
+    sera = ore(2026, 10, 13, 20, 17)
+    assert leggi_posta.inizio_finestra(sera, sera.date()) == ore(2026, 10, 12, 20, 0)
+
+
+def test_la_query_copre_la_finestra():
+    adesso = ore(2026, 10, 13, 20, 17)
+    assert "newer_than:2d" in leggi_posta.query_recenti(adesso, ore(2026, 10, 12, 20, 0))
+    pomeriggio = ore(2026, 10, 13, 19, 59)
+    assert "newer_than:3d" in leggi_posta.query_recenti(pomeriggio, ore(2026, 10, 11, 20, 0))
+
+
+# ─────────── 13. l'avviso di fallimento non si mangia il riepilogo vero ───────────
+
+def test_un_fallimento_non_blocca_il_riepilogo_della_corsa_dopo():
+    marcatore, cerca = applica.marcatori("Riepilogo non generato: ...", "")
+    assert marcatore == applica.MARCATORE_KO and applica.MARCATORE in cerca
+    marcatore, cerca = applica.marcatori("", "pubblicata")
+    assert marcatore == applica.MARCATORE and cerca == [applica.MARCATORE]
+    # pagina online ma deploy lento: e' comunque il riepilogo vero
+    marcatore, _ = applica.marcatori("Commit fatto, deploy non ancora confermato", "pubblicata")
+    assert marcatore == applica.MARCATORE
+
+
+def test_i_due_marcatori_si_cercano_insieme(monkeypatch):
+    viste = []
+
+    class Lista:
+        def __init__(self, q): self.q = q
+        def execute(self): viste.append(self.q); return {}
+
+    class Servizio:
+        def users(self): return self
+        def messages(self): return self
+        def list(self, userId, q, maxResults): return Lista(q)
+
+    assert applica.gia_mandata(Servizio(), "2026-10-13",
+                               [applica.MARCATORE, applica.MARCATORE_KO]) is False
+    assert '"posta-della-sera:2026-10-13" OR "posta-della-sera-ko:2026-10-13"' in viste[0]
+
+
+# ─────────── 14. segreti e taglio ───────────
+
+def test_un_iban_a_gruppi_tagliato_a_meta_non_passa():
+    d = json.loads(json.dumps(ESEMPIO))
+    d["sezioni"]["soldi"]["voci"][0]["testo"] = (
+        "Bonifico ricevuto per il rimborso del deposito cauzionale dell'appartamento, "
+        "accreditato oggi sul conto con coordinate IT60 X054 2811 1010 0000 0123 456 "
+        "come da accordi presi la settimana scorsa con l'agenzia")
+    with pytest.raises(dati.Errore, match="vietata"):
+        dati.valida(d)
+
+
+def test_un_token_ricomposto_dal_taglio_non_passa():
+    with pytest.raises(dati.Errore, match="vietata"):
+        dati.testo("ghp_abcdefghij**klmnopqrstuvwxyz " + "riempitivo " * 30, "x", 100)
+
+
+def test_un_tracking_con_la_forma_di_un_iban_non_e_un_segreto():
+    for codice in ("LP00612345678901", "YT2312345678901234", "UB123456789012345"):
+        assert dati.testo(codice, "meta.valore", 60) == codice
+
+
+def test_un_token_anthropic_non_passa():
+    with pytest.raises(dati.Errore, match="vietata"):
+        dati.testo("sk-ant-oat01-" + "a" * 40, "x", 500)
+
+
+def test_il_taglio_fra_gli_asterischi_non_lascia_un_asterisco():
+    corto = dati.accorcia("Pagamento **entrovenerdìassolutamente** ok fine della frase lunga", 39)
+    assert "*" not in corto
+
+
+def test_i_codici_otp_scritti_a_gruppi_bloccano_la_pagina():
+    for frase in ("Amazon: codice di verifica 448 213, scade fra 10 minuti",
+                  "Il tuo OTP: 448-213",
+                  "Codice OTP per il login:\n448213"):
+        nuova = rendi.rendi(TEMPLATE, ESEMPIO).replace("<p>Casco", f"<p>{frase} Casco")
+        assert any("OTP" in p for p in controlla_pagina.controlla(nuova, TEMPLATE)), frase
+
+
+def test_una_data_dopo_la_parola_otp_non_blocca_la_pagina():
+    d = json.loads(json.dumps(ESEMPIO))
+    d["sezioni"]["da_fare"]["voci"][0]["testo"] = "Ti arriva un OTP per SMS al ritiro, entro il 15.10.2026"
+    assert controlla_pagina.controlla(rendi.rendi(TEMPLATE, d), TEMPLATE) == []
+
+
+def test_la_diagnosi_legge_gli_errori_della_cli_e_li_mette_nell_output(tmp_path):
+    f = tmp_path / "esecuzione.json"
+    f.write_text(json.dumps([{"type": "result", "subtype": "error_during_execution",
+                              "is_error": True, "num_turns": 0, "total_cost_usd": 0,
+                              "errors": ["OAuth token has expired"]}]))
+    uscita = tmp_path / "output"
+    perche_claude.main(str(f), str(uscita))
+    assert uscita.read_text().startswith("motivo=Claude non e' partito: OAuth token has expired")

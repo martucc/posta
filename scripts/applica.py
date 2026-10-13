@@ -18,6 +18,11 @@ from gmail import (ARCHIVIA, CESTINO, DRY_RUN, ME, PAGINA, RUMORE, SALVAGENTE, C
                    mappa_etichette, pulisci_oggetto, riprova, service)
 
 MARCATORE = "posta-della-sera"
+# Il riepilogo di una serata andata storta ha un marcatore suo: cosi' quando la
+# corsa dopo riesce, il riepilogo vero parte lo stesso. Prima il primo avviso di
+# fallimento "consumava" la giornata e il riepilogo vero non arrivava mai.
+MARCATORE_KO = "posta-della-sera-ko"
+PUBBLICATA = {"pubblicata", "invariata"}
 
 
 def carica(percorso, ripiego=None):
@@ -87,12 +92,24 @@ def decidi_archivio(mid, messaggi, scelte):
     return bool(finali & RUMORE)
 
 
-def gia_mandata(svc, oggi):
+def marcatori(esito_pagina, esito_commit):
+    """-> (marcatore da scrivere, marcatori che vietano di mandare).
+
+    Pagina online: si manda il riepilogo, a meno che ne sia gia' partito uno
+    vero. Pagina non online: si manda l'avviso, una volta sola, e niente se il
+    riepilogo vero e' gia' partito."""
+    if esito_commit in PUBBLICATA or not esito_pagina:
+        return MARCATORE, [MARCATORE]
+    return MARCATORE_KO, [MARCATORE, MARCATORE_KO]
+
+
+def gia_mandata(svc, oggi, cerca=(MARCATORE,)):
     """Se il riepilogo di oggi e' gia' partito, non ne mandiamo un secondo.
     Lo stato sta in Gmail: nessun database da tenere in vita."""
+    frasi = " OR ".join(f'"{m}:{oggi}"' for m in cerca)
     try:
         r = riprova(svc.users().messages().list(
-            userId="me", q=f'in:anywhere from:{ME} "{MARCATORE}:{oggi}"', maxResults=1),
+            userId="me", q=f"in:anywhere from:{ME} ({frasi})", maxResults=1),
             "controllo riepilogo gia' inviato")
         return bool(r.get("messages"))
     except Exception as errore:
@@ -100,8 +117,8 @@ def gia_mandata(svc, oggi):
         return False
 
 
-def manda(svc, oggetto, righe, oggi):
-    corpo = "\n".join(righe + ["", PAGINA, "", f"{MARCATORE}:{oggi}"])
+def manda(svc, oggetto, righe, oggi, marcatore=MARCATORE):
+    corpo = "\n".join(righe + ["", PAGINA, "", f"{marcatore}:{oggi}"])
     msg = MIMEText(corpo, "plain", "utf-8")
     msg["To"] = ME
     msg["From"] = ME
@@ -166,10 +183,11 @@ def main(cartella):
     if esito_pagina:
         righe.insert(0, esito_pagina)  # il fallimento e' sempre la prima riga
 
-    if oggi and gia_mandata(svc, oggi):
+    marcatore, cerca = marcatori(esito_pagina, os.environ.get("ESITO_COMMIT", "").strip())
+    if oggi and gia_mandata(svc, oggi, cerca):
         print("riepilogo di oggi gia' inviato, non ne mando un altro")
         return
-    manda(svc, email.get("oggetto") or "Posta della sera", righe, oggi)
+    manda(svc, email.get("oggetto") or "Posta della sera", righe, oggi, marcatore)
     print(f"riepilogo inviato: {pulisci_oggetto(email.get('oggetto'))}")
 
 
