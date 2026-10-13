@@ -62,16 +62,37 @@ def _campo(dove, chiave):
     return f"{dove}.{chiave}" if dove else chiave
 
 
+def accorcia(v, massimo):
+    """Taglia a fine parola e chiude con un'ellissi. Un ** rimasto spaiato dal
+    taglio sparisce, altrimenti in pagina resterebbero due asterischi."""
+    corto = v[:massimo - 1]
+    spazio = corto.rfind(" ")
+    if spazio >= massimo // 2:
+        corto = corto[:spazio]
+    corto = corto.rstrip(" ,;:.-–—") or v[:massimo - 1]
+    if corto.count("**") % 2:
+        i = corto.rfind("**")
+        corto = corto[:i] + corto[i + 2:]
+    return corto + "…"
+
+
 def testo(valore, dove, massimo=600, obbligatorio=True):
+    """I testi troppo lunghi si accorciano con un avviso, come le liste: il
+    2 e il 3 ottobre una riga di Soldi di 274 e 303 caratteri ha tenuto offline
+    la pagina intera. I segreti invece fermano tutto, e si cercano sia sul testo
+    intero sia su quello tagliato."""
     if valore is None and not obbligatorio:
         return None
     if not isinstance(valore, str) or not valore.strip():
         raise Errore(f"{dove}: manca il testo")
     v = valore.strip()
-    if len(v) > massimo:
-        raise Errore(f"{dove}: troppo lungo ({len(v)} caratteri, massimo {massimo})")
     if VIETATO.search(v):
         raise Errore(f"{dove}: contiene una parola vietata in pagina pubblica")
+    if len(v) > massimo:
+        print(f"AVVISO: {dove} era lungo {len(v)} caratteri, accorciato a {massimo}")
+        v = accorcia(v, massimo)
+        if VIETATO.search(v):
+            raise Errore(f"{dove}: contiene una parola vietata in pagina pubblica")
     return v
 
 
@@ -230,22 +251,24 @@ def sezione(valore, nome):
 
 
 def contatori(valore):
-    if not isinstance(valore, list) or not 1 <= len(valore) <= 5:
+    if not isinstance(valore, list) or not valore:
         raise Errore("contatori: da 1 a 5 riquadri")
-    out, urgenti = [], 0
+    valore = troppi(valore, 5, "contatori")
+    out, urgente_visto = [], False
     for i, c in enumerate(valore):
         d = f"contatori[{i}]"
         if not isinstance(c, dict):
             raise Errore(f"{d}: dev'essere un oggetto")
         urgente = bool(c.get("urgente", False))
-        urgenti += urgente
+        if urgente and urgente_visto:
+            print(f"AVVISO: {d} era il secondo riquadro urgente, resta normale")
+            urgente = False
+        urgente_visto = urgente_visto or urgente
         out.append({
             "n": intero(c.get("n"), _campo(d, "n")),
             "etichetta": testo(c.get("etichetta"), _campo(d, "etichetta"), 18),
             "urgente": urgente,
         })
-    if urgenti > 1:
-        raise Errore("contatori: un solo riquadro puo' essere urgente")
     return out
 
 
@@ -297,7 +320,14 @@ def valida(dati):
     frase = testo(titolo.get("testo"), "titolo.testo", 90)
     evidenzia = testo(titolo.get("evidenzia"), "titolo.evidenzia", 30, obbligatorio=False)
     if evidenzia and evidenzia not in frase:
-        raise Errore("titolo.evidenzia: la parola da evidenziare non e' nella frase")
+        intera = str(titolo.get("testo")).strip()
+        if (frase != intera or evidenzia != str(titolo.get("evidenzia")).strip()) \
+                and str(titolo.get("evidenzia")).strip() in intera:
+            # Il taglio ha portato via le parole da evidenziare: niente evidenziato.
+            print("AVVISO: titolo.evidenzia e' finito nella parte tagliata, lo tolgo")
+            evidenzia = None
+        else:
+            raise Errore("titolo.evidenzia: la parola da evidenziare non e' nella frase")
 
     sezioni = {}
     for nome, _ in SEZIONI:

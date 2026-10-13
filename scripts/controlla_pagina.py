@@ -25,7 +25,10 @@ VUOTI = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
 
 SEGRETI = [
     (re.compile(r"\b(?:password|passwd|pwd)\b\s*[:=]", re.I), "una password"),
-    (re.compile(r"\b(?:otp|codice di verifica|verification code|one[- ]time code)\b", re.I), "un codice OTP"),
+    # Come in dati.py: il codice, non la parola. "ti arriva un OTP per SMS" e'
+    # una frase; "OTP 448213" e' un segreto.
+    (re.compile(r"\b(?:otp|codice di verifica|verification code|one[- ]time code)\b"
+                r"[^\d\n]{0,20}\d{4,8}\b", re.I), "un codice OTP"),
     (re.compile(r"\bBearer\s+[A-Za-z0-9._-]{12,}", re.I), "un token Bearer"),
     (re.compile(r"\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]{20,}"), "un token GitHub"),
     (re.compile(r"\bya29\.[A-Za-z0-9._-]{20,}"), "un access token Google"),

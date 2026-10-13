@@ -257,6 +257,67 @@ def test_la_sicurezza_invece_rifiuta_ancora():
         dati.valida(d)
 
 
+def test_un_testo_troppo_lungo_si_accorcia_non_butta_la_pagina():
+    """Il caso del 2 e 3 ottobre: una riga di Soldi di 303 caratteri contro un
+    massimo di 200, e la pagina restava quella di ieri."""
+    d = json.loads(json.dumps(ESEMPIO))
+    lungo = ("Addebito ricorrente del piano annuale rinnovato in automatico, con "
+             "**conferma via mail** e ricevuta allegata. ") * 4
+    d["sezioni"]["soldi"]["voci"][0]["testo"] = lungo
+    d["sezioni"]["pacchi"]["coda"] = "Chiusi e quindi esclusi: " + "cover, siero, casco; " * 25
+    pulito = dati.valida(d)
+    testo = pulito["sezioni"]["soldi"]["voci"][0]["testo"]
+    coda = pulito["sezioni"]["pacchi"]["coda"]
+    assert len(testo) <= 200 and testo.endswith("…")
+    assert len(coda) <= 400 and coda.endswith("…")
+    assert controlla_pagina.controlla(rendi.rendi(TEMPLATE, d), TEMPLATE) == []
+
+
+def test_il_taglio_non_lascia_un_grassetto_a_meta():
+    corto = dati.accorcia("Rimborso **in arrivo entro sette giorni lavorativi** dal reso", 30)
+    assert len(corto) <= 30 and corto.endswith("…")
+    assert corto.count("**") % 2 == 0
+
+
+def test_un_segreto_dopo_il_punto_di_taglio_blocca_ancora():
+    """Tagliare non deve nascondere un segreto che stava in fondo al testo."""
+    d = json.loads(json.dumps(ESEMPIO))
+    d["sezioni"]["soldi"]["voci"][0]["testo"] = "x " * 150 + "password: hunter2extra"
+    with pytest.raises(dati.Errore, match="vietata"):
+        dati.valida(d)
+
+
+def test_un_titolo_tagliato_perde_l_evidenziato_ma_esce():
+    d = json.loads(json.dumps(ESEMPIO))
+    d["titolo"] = {"testo": "Tre pacchi in viaggio e una lunga lista di cose da fare prima "
+                            "di giovedì sera, compresa la fattura",
+                   "evidenzia": "la fattura"}
+    pulito = dati.valida(d)
+    assert len(pulito["titolo"]["testo"]) <= 90
+    assert pulito["titolo"]["evidenzia"] is None
+
+
+def test_troppi_contatori_o_due_urgenti_non_buttano_la_pagina():
+    d = json.loads(json.dumps(ESEMPIO))
+    d["contatori"] = [{"n": 1, "etichetta": f"C{i}", "urgente": True} for i in range(7)]
+    pulito = dati.valida(d)
+    assert len(pulito["contatori"]) == 5
+    assert [c["urgente"] for c in pulito["contatori"]] == [True, False, False, False, False]
+
+
+def test_la_parola_otp_senza_codice_non_ferma_la_pagina():
+    d = json.loads(json.dumps(ESEMPIO))
+    d["sezioni"]["da_fare"]["voci"][0]["testo"] = (
+        "Attiva il 2FA: al primo accesso ti arriva un codice OTP per SMS, "
+        "poi un codice di verifica via mail.")
+    assert controlla_pagina.controlla(rendi.rendi(TEMPLATE, d), TEMPLATE) == []
+
+
+def test_un_codice_otp_in_pagina_blocca_ancora():
+    nuova = rendi.rendi(TEMPLATE, ESEMPIO).replace("<p>Casco", "<p>codice OTP: 448213 Casco")
+    assert any("OTP" in p for p in controlla_pagina.controlla(nuova, TEMPLATE))
+
+
 def test_una_sezione_vuota_sparisce():
     d = json.loads(json.dumps(ESEMPIO))
     d["sezioni"]["viaggi"] = {"voci": []}
@@ -350,3 +411,105 @@ def test_rendere_sulla_pagina_di_ieri_da_lo_stesso_html():
     """Il template e' la pagina di ieri: rigenerare non deve accumulare nulla."""
     prima = rendi.rendi(TEMPLATE, ESEMPIO)
     assert rendi.rendi(prima, ESEMPIO) == prima
+
+
+# ─────────── 11. la serata: i cron di GitHub arrivano in ritardo ───────────
+
+import guardia
+import leggi_posta
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+ROMA = ZoneInfo("Europe/Rome")
+
+
+def ore(*args, **kw):
+    return datetime(*args, tzinfo=ROMA, **kw)
+
+
+def test_una_corsa_dopo_mezzanotte_pubblica_la_serata_di_ieri():
+    """Il 12 ottobre: cron delle 20 consegnato alle 2:06, e la pagina non usciva."""
+    giorno, etichetta, esegui, _ = guardia.decidi(ore(2026, 10, 13, 2, 6), "schedule", False, set())
+    assert esegui and giorno.isoformat() == "2026-10-12" and etichetta == "12.10.2026"
+
+
+def test_la_seconda_corsa_tardiva_non_ripubblica():
+    _, _, esegui, motivo = guardia.decidi(ore(2026, 10, 13, 3, 3), "schedule", False,
+                                          {"Riepilogo del 12.10.2026"})
+    assert not esegui and "gia' pubblicata" in motivo
+
+
+def test_la_corsa_di_stasera_non_vede_la_serata_di_ieri_come_sua():
+    """Pubblicata alle 2 la serata del 12, alle 20:17 del 13 si riparte."""
+    giorno, _, esegui, _ = guardia.decidi(ore(2026, 10, 13, 20, 17), "schedule", False,
+                                          {"Riepilogo del 12.10.2026"})
+    assert esegui and giorno.isoformat() == "2026-10-13"
+
+
+def test_di_giorno_il_cron_non_parte():
+    for ora in (6, 12, 19):
+        _, _, esegui, _ = guardia.decidi(ore(2026, 10, 13, ora, 17), "schedule", False, set())
+        assert not esegui
+
+
+def test_a_mano_si_parte_a_qualsiasi_ora():
+    giorno, _, esegui, _ = guardia.decidi(ore(2026, 10, 13, 15, 0), "workflow_dispatch", False, set())
+    assert esegui and giorno.isoformat() == "2026-10-13"
+
+
+def test_forza_ripubblica_anche_se_gia_fatta():
+    _, _, esegui, _ = guardia.decidi(ore(2026, 10, 13, 21, 0), "workflow_dispatch", True,
+                                     {"Riepilogo del 13.10.2026"})
+    assert esegui
+
+
+def test_la_serata_attraversa_l_anno_e_il_cambio_d_ora():
+    giorno, etichetta, _, _ = guardia.decidi(ore(2027, 1, 1, 1, 0), "schedule", False, set())
+    assert giorno.isoformat() == "2026-12-31" and etichetta == "31.12.2026"
+    # 25 ottobre 2026: le 2:30 esistono due volte, la serata resta il 24
+    giorno, _, esegui, _ = guardia.decidi(ore(2026, 10, 25, 2, 30, fold=1), "schedule", False, set())
+    assert esegui and giorno.isoformat() == "2026-10-24"
+
+
+def test_leggi_posta_usa_la_data_della_serata():
+    adesso = ore(2026, 10, 13, 2, 6)
+    assert leggi_posta.giorno_della_serata(adesso, "2026-10-12").isoformat() == "2026-10-12"
+    assert leggi_posta.giorno_della_serata(adesso, "").isoformat() == "2026-10-13"
+    assert leggi_posta.giorno_della_serata(adesso, None).isoformat() == "2026-10-13"
+
+
+# ─────────── 12. perche' Claude si e' fermato, senza mostrare la posta ───────────
+
+import perche_claude
+
+
+def test_se_claude_non_parte_si_vede_l_errore(tmp_path):
+    f = tmp_path / "esecuzione.json"
+    f.write_text(json.dumps([
+        {"type": "system", "subtype": "init"},
+        {"type": "result", "subtype": "success", "is_error": True, "num_turns": 1,
+         "total_cost_usd": 0, "result": "Claude AI usage limit reached|1791850200"}]))
+    riga = perche_claude.motivo(perche_claude.messaggi(str(f)))
+    assert "non e' partito" in riga and "usage limit" in riga
+
+
+def test_se_claude_ha_lavorato_la_posta_non_finisce_nel_log(tmp_path):
+    f = tmp_path / "esecuzione.json"
+    f.write_text(json.dumps([{"type": "result", "subtype": "error_max_turns", "is_error": True,
+                              "num_turns": 31, "total_cost_usd": 1.2,
+                              "result": "Il pacco di Mario Rossi in via Roma 1 arriva domani"}]))
+    riga = perche_claude.motivo(perche_claude.messaggi(str(f)))
+    assert "31 turni" in riga and "Mario" not in riga
+
+
+def test_un_token_nell_errore_non_finisce_nel_log(tmp_path):
+    f = tmp_path / "esecuzione.json"
+    f.write_text(json.dumps([{"type": "result", "is_error": True, "num_turns": 0,
+                              "result": "API Error: 401 invalid sk-ant-oat01-abcdefghijklmnop"}]))
+    assert "sk-ant" not in perche_claude.motivo(perche_claude.messaggi(str(f)))
+
+
+def test_senza_file_di_esecuzione_non_si_rompe(tmp_path):
+    uscita = tmp_path / "esito.txt"
+    assert perche_claude.main(str(tmp_path / "manca.json"), str(uscita)) == 0
+    assert "nessun file" in uscita.read_text()

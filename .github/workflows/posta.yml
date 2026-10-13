@@ -1,13 +1,21 @@
 name: Posta della sera
 
 on:
-  # Le 20:00 di Roma sono le 18 UTC con l'ora legale e le 19 d'inverno: partono
-  # entrambe e la guardia qui sotto decide qual e' quella buona. I cron di GitHub
-  # arrivano in coda, quindi la guardia tollera il ritardo senza pubblicare due volte.
+  # Le 20:00 di Roma sono le 18 UTC con l'ora legale e le 19 d'inverno. GitHub
+  # consegna i cron anche con ore di ritardo (il 12 ottobre quelli delle 20 e 21
+  # sono arrivati alle 2:06 e alle 3:03), e allo scoccare dell'ora e' peggio: per
+  # questo minuti dispari e piu' corse. La guardia tiene buona la prima che arriva
+  # fra le 20 e le 6 del mattino (dopo mezzanotte vale per la serata di ieri) e
+  # fa uscire le altre in pochi secondi. Se una corsa non pubblica, la successiva
+  # riprova.
   #
+  #          UTC     legale   solare
   schedule:
-    - cron: "0 18 * * *"
-    - cron: "0 19 * * *"
+    - cron: "17 18 * * *"   # 20:17    19:17 (la guardia la salta)
+    - cron: "17 19 * * *"   # 21:17    20:17
+    - cron: "47 20 * * *"   # 22:47    21:47
+    - cron: "17 22 * * *"   # 00:17    23:17
+    - cron: "17 2 * * *"    # 04:17    03:17  ultima occasione per la serata prima
   workflow_dispatch:
     inputs:
       dry_run:
@@ -30,6 +38,7 @@ concurrency:
 
 env:
   TZ: Europe/Rome
+  PYTHONDONTWRITEBYTECODE: "1"
   TIMEZONE: Europe/Rome
   OWNER_EMAIL: ${{ vars.OWNER_EMAIL }}
   PAGE_URL: ${{ vars.PAGE_URL }}
@@ -39,31 +48,23 @@ env:
 jobs:
   posta:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     steps:
+      # Per il cron, main com'e' adesso e non com'era quando GitHub ha messo in
+      # coda la corsa: una corsa rimasta in coda dietro a quella che ha appena
+      # pubblicato deve vedere quel commit, o rifarebbe tutto da capo.
       - uses: actions/checkout@v5
         with:
-          fetch-depth: 2
+          ref: ${{ github.event_name == 'schedule' && github.event.repository.default_branch || '' }}
+          fetch-depth: 60
 
       # ─── Si esegue? Ora giusta, serata non ancora pubblicata ───
       - id: guardia
         name: Decidi se questa e' la corsa buona
-        run: |
-          set -euo pipefail
-          ora=$(TZ=Europe/Rome date +%-H)
-          oggi=$(TZ=Europe/Rome date +%d.%m.%Y)
-          ultimo=$(git log -1 --format=%s)
-          esegui=si
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            if [ "$ora" -lt 20 ]; then
-              esegui=no; motivo="a Roma sono le $ora, non e' ancora sera"
-            fi
-          fi
-          if [ "${{ inputs.forza }}" != "true" ] && [ "$ultimo" = "Riepilogo del $oggi" ]; then
-            esegui=no; motivo="la serata del $oggi e' gia' pubblicata"
-          fi
-          echo "esegui=$esegui" >> "$GITHUB_OUTPUT"
-          [ "$esegui" = "si" ] && echo "si parte (ore $ora a Roma)" || echo "salto: $motivo"
+        env:
+          EVENTO: ${{ github.event_name }}
+          FORZA: ${{ inputs.forza }}
+        run: python3 scripts/guardia.py
 
       - if: steps.guardia.outputs.esegui == 'si'
         uses: actions/setup-python@v5
@@ -79,6 +80,7 @@ jobs:
         name: Leggi la posta
         env:
           GMAIL_TOKEN_JSON: ${{ secrets.GMAIL_TOKEN_JSON }}
+          SERATA: ${{ steps.guardia.outputs.serata }}
         run: python scripts/leggi_posta.py lavoro/mail.json
 
       # ─── Claude decide, ma non ha le chiavi di niente ───
@@ -111,21 +113,122 @@ jobs:
 
       # ─── Niente di quello che Claude ha fatto fuori da lavoro/ sopravvive ───
       # Se una mail fosse riuscita a fargli modificare uno script, quello script
-      # verrebbe eseguito qui sotto con il token Gmail in mano. Non succede:
-      # tutto il repo torna com'era, e se era cambiato il run si ferma.
+      # verrebbe eseguito qui sotto, e piu' avanti con il token Gmail in mano. Non
+      # succede: si controlla subito dopo ogni giro di Claude, prima di eseguire
+      # qualsiasi script del repo, e se qualcosa e' cambiato il run si ferma.
       - if: steps.guardia.outputs.esegui == 'si'
         name: Verifica che il repo non sia stato toccato
         run: |
           set -euo pipefail
-          sporco=$(git status --porcelain)
+          # Anche i file ignorati: un __pycache__ scritto da Claude verrebbe
+          # caricato da Python al posto dello script vero.
+          sporco=$(git status --porcelain --ignored=matching | grep -vx '!! lavoro/' || true)
           if [ -n "$sporco" ]; then
             echo "::error::file modificati fuori da lavoro/:"
             echo "$sporco"
             git checkout -- .
-            git clean -fd -e lavoro
+            git clean -fdx -e lavoro
             exit 1
           fi
           echo "repository intatto"
+
+      # ─── Se il primo tentativo non ha dato una pagina valida, se ne fa un altro ───
+      # Il 26-27 settembre, il 4 e il 10 ottobre Claude si e' fermato in meno di
+      # un secondo, senza che il log dicesse perche'. Qui si scrive il motivo (mai
+      # la posta: il log e' pubblico) e si riprova una volta. Se a fermarlo e'
+      # stata l'API, il secondo giro usa Sonnet, nel caso il limite sia di Opus.
+      - if: steps.guardia.outputs.esegui == 'si' && steps.claude.outcome == 'failure'
+        name: Perche' Claude si e' fermato
+        env:
+          FILE_ESECUZIONE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          mkdir -p lavoro
+          python scripts/perche_claude.py "${FILE_ESECUZIONE:-$RUNNER_TEMP/claude-execution-output.json}" \
+            lavoro/esito_claude.txt
+
+      - if: steps.guardia.outputs.esegui == 'si'
+        id: prova
+        name: Prova i dati prima di pubblicare
+        run: |
+          mkdir -p lavoro
+          if [ -s lavoro/giornata.json ] && \
+             python scripts/rendi.py index.html lavoro/giornata.json lavoro/prova.html > lavoro/prova.log 2>&1 && \
+             python scripts/controlla_pagina.py lavoro/prova.html index.html >> lavoro/prova.log 2>&1; then
+            echo "dati validi"; echo "ok=si" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ok=no" >> "$GITHUB_OUTPUT"
+          if [ ! -s lavoro/giornata.json ]; then
+            echo "giornata.json assente"
+            echo "campo=" >> "$GITHUB_OUTPUT"
+          else
+            # Solo il percorso del campo (es. sezioni.pacchi.voci[0].route), scritto
+            # dal validatore: niente valori presi dalle mail nel prompt del secondo giro.
+            campo=$(tail -n 1 lavoro/prova.log | sed -n 's/^dati\.Errore: \([][A-Za-z0-9_.]*\):.*/\1/p')
+            echo "dati non validi: ${campo:-motivo nel log}"; tail -n 1 lavoro/prova.log
+            echo "campo=$campo" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.guardia.outputs.esegui == 'si' && steps.prova.outputs.ok != 'si'
+        id: istruzioni_bis
+        name: Prepara il secondo tentativo
+        env:
+          CAMPO: ${{ steps.prova.outputs.campo }}
+        run: |
+          if [ -f lavoro/esito_claude.txt ]; then
+            sleep 60   # un errore dell'API spesso passa da solo
+          fi
+          {
+            echo 'testo<<FINE_ISTRUZIONI'
+            cat scripts/istruzioni.md
+            echo
+            echo '## Secondo tentativo'
+            echo
+            echo 'Il primo tentativo di stasera non ha prodotto una pagina valida. Rifai tutto da capo'
+            echo 'e riscrivi entrambi i file.'
+            if [ -n "$CAMPO" ]; then
+              echo "Il validatore ha rifiutato il campo \`$CAMPO\`: rileggi i vincoli del Passo 5"
+              echo 'per quel campo prima di scrivere.'
+            fi
+            echo 'FINE_ISTRUZIONI'
+          } >> "$GITHUB_OUTPUT"
+
+      - if: steps.guardia.outputs.esegui == 'si' && steps.prova.outputs.ok != 'si'
+        id: claude_bis
+        uses: anthropics/claude-code-action@v1
+        continue-on-error: true
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --model ${{ steps.claude.outcome == 'failure' && 'sonnet' || 'claude-opus-5' }}
+            --max-turns 30
+            --allowedTools "Read,Write"
+            --disallowedTools "Bash,Edit,WebFetch,WebSearch,mcp__github"
+          prompt: ${{ steps.istruzioni_bis.outputs.testo }}
+
+      - if: steps.guardia.outputs.esegui == 'si' && steps.prova.outputs.ok != 'si'
+        name: Verifica che il repo non sia stato toccato, di nuovo
+        run: |
+          set -euo pipefail
+          # Anche i file ignorati: un __pycache__ scritto da Claude verrebbe
+          # caricato da Python al posto dello script vero.
+          sporco=$(git status --porcelain --ignored=matching | grep -vx '!! lavoro/' || true)
+          if [ -n "$sporco" ]; then
+            echo "::error::file modificati fuori da lavoro/:"
+            echo "$sporco"
+            git checkout -- .
+            git clean -fdx -e lavoro
+            exit 1
+          fi
+          echo "repository intatto"
+
+      - if: steps.guardia.outputs.esegui == 'si' && steps.claude_bis.outcome == 'failure'
+        name: Perche' Claude si e' fermato anche la seconda volta
+        env:
+          FILE_ESECUZIONE: ${{ steps.claude_bis.outputs.execution_file }}
+        run: |
+          python scripts/perche_claude.py "${FILE_ESECUZIONE:-$RUNNER_TEMP/claude-execution-output.json}" \
+            lavoro/esito_claude.txt
 
       # ─── La pagina la costruisce il renderer, non il modello ───
       - if: steps.guardia.outputs.esegui == 'si'
@@ -139,7 +242,8 @@ jobs:
           if [ ! -s lavoro/giornata.json ]; then
             echo "ESITO: giornata.json assente o vuoto"
             echo "esito=assente" >> "$GITHUB_OUTPUT"
-            echo "Riepilogo non generato: la pagina resta quella di ieri." > lavoro/esito_pagina.txt
+            perche=$(cat lavoro/esito_claude.txt 2>/dev/null || true)
+            echo "Riepilogo non generato: la pagina resta quella di ieri. ${perche}" > lavoro/esito_pagina.txt
             exit 0
           fi
           if ! python scripts/rendi.py index.html lavoro/giornata.json lavoro/index.nuova.html \
@@ -201,7 +305,7 @@ jobs:
             exit 1
           fi
           git -c user.email="${{ vars.OWNER_EMAIL }}" -c user.name="Posta della sera" \
-            commit -m "Riepilogo del $(TZ=Europe/Rome date +%d.%m.%Y)"
+            commit -m "Riepilogo del ${{ steps.guardia.outputs.etichetta }}"
           for tentativo in 1 2 3; do
             if git push; then
               echo "pagina pubblicata: $(git rev-parse --short HEAD)"
@@ -258,6 +362,19 @@ jobs:
           path: |
             lavoro/*.log
             lavoro/esito_pagina.txt
+            lavoro/esito_claude.txt
             lavoro/giornata.json
             lavoro/azioni.json
           if-no-files-found: ignore
+
+      # ─── Se la pagina non e' online, il run e' rosso ───
+      # Prima finiva tutto verde anche quando la pagina restava quella di ieri, e
+      # per tre settimane nessuno se n'e' accorto. Rosso = GitHub ti manda una mail.
+      - if: always() && steps.guardia.outputs.esegui == 'si' && inputs.dry_run != true
+        name: Esito della serata
+        run: |
+          case "${{ steps.commit.outputs.esito }}" in
+            pubblicata|invariata) echo "pagina a posto"; exit 0 ;;
+          esac
+          echo "::error::$(cat lavoro/esito_pagina.txt 2>/dev/null || echo 'pagina non pubblicata, guarda i passi sopra')"
+          exit 1

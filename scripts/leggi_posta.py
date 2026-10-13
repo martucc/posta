@@ -16,7 +16,7 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from email.utils import parseaddr
 from zoneinfo import ZoneInfo
 
@@ -101,17 +101,26 @@ def messaggio(m, nomi, taglio_ms):
     return out
 
 
+def giorno_della_serata(adesso, serata=""):
+    """La data che va in pagina. Il workflow la passa in SERATA: un cron che
+    GitHub consegna alle 2 di notte e' ancora la serata di ieri, e se prendesse
+    la data di oggi la corsa di stasera troverebbe la serata gia' pubblicata."""
+    serata = (serata or "").strip()
+    return date.fromisoformat(serata) if serata else adesso.date()
+
+
 def main(destinazione):
     svc = service()
     nomi = {i: n for n, i in mappa_etichette(svc).items()}
     adesso = datetime.now(ZoneInfo(FUSO))
+    giorno = giorno_della_serata(adesso, os.environ.get("SERATA"))
     taglio = adesso - timedelta(hours=FINESTRA_ORE)
     taglio_ms = int(taglio.timestamp() * 1000)
 
     dati = {
-        "oggi": f"{GIORNI[adesso.weekday()]} {adesso.day:02d} {MESI[adesso.month - 1]} {adesso.year}",
-        "oggi_iso": adesso.date().isoformat(),
-        "stamp": adesso.strftime("%d.%m"),
+        "oggi": f"{GIORNI[giorno.weekday()]} {giorno.day:02d} {MESI[giorno.month - 1]} {giorno.year}",
+        "oggi_iso": giorno.isoformat(),
+        "stamp": giorno.strftime("%d.%m"),
         "adesso": adesso.isoformat(timespec="minutes"),
         "finestra_da": taglio.isoformat(timespec="minutes"),
         "etichette_disponibili": sorted(nomi.values()),
