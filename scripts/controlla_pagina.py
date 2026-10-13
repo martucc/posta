@@ -25,11 +25,16 @@ VUOTI = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
 
 SEGRETI = [
     (re.compile(r"\b(?:password|passwd|pwd)\b\s*[:=]", re.I), "una password"),
-    (re.compile(r"\b(?:otp|codice di verifica|verification code|one[- ]time code)\b", re.I), "un codice OTP"),
+    # Il codice, non la parola: "ti arriva un OTP per SMS" e' una frase,
+    # "OTP 448213" o "codice di verifica: 448 213" sono segreti. Lo spazio fra
+    # parola e codice puo' attraversare un a capo o un tag.
+    (re.compile(r"\b(?:otp|codice di verifica|verification code|one[- ]time code)\b"
+                r"[^\d]{0,20}(?:\d{4,8}|\d{3}[ -]\d{3})\b", re.I), "un codice OTP"),
     (re.compile(r"\bBearer\s+[A-Za-z0-9._-]{12,}", re.I), "un token Bearer"),
     (re.compile(r"\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]{20,}"), "un token GitHub"),
     (re.compile(r"\bya29\.[A-Za-z0-9._-]{20,}"), "un access token Google"),
     (re.compile(r"\bAIza[A-Za-z0-9_-]{30,}"), "una API key Google"),
+    (re.compile(r"\bsk-ant-[A-Za-z0-9_-]{20,}"), "un token Anthropic"),
     (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"), "una chiave privata"),
     (re.compile(r"\bpin\b\s*[:=]?\s*\d{4,8}\b", re.I), "un PIN"),
 ]

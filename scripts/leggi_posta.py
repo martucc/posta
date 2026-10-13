@@ -16,13 +16,13 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from email.utils import parseaddr
 from zoneinfo import ZoneInfo
 
 from gmail import FUSO, RUMORE, mappa_etichette, riprova, service
 
-Q_24H = "newer_than:2d -in:sent -in:draft -in:chats"
+Q_24H = "newer_than:{giorni}d -in:sent -in:draft -in:chats"
 Q_PACCHI = ("newer_than:21d -in:sent -in:draft "
             "subject:(ordine OR spedizione OR spedito OR consegna OR consegnato OR pacco "
             "OR tracking OR shipped OR delivered OR order OR reso OR rimborso OR refund "
@@ -31,6 +31,7 @@ Q_PACCHI = ("newer_than:21d -in:sent -in:draft "
 MAX_CORPO = 2500
 MAX_DIMENSIONE = 500_000
 FINESTRA_ORE = 24
+INIZIO_SERA = 20
 
 GIORNI = ["LUN", "MAR", "MER", "GIO", "VEN", "SAB", "DOM"]
 MESI = ["GEN", "FEB", "MAR", "APR", "MAG", "GIU", "LUG", "AGO", "SET", "OTT", "NOV", "DIC"]
@@ -101,29 +102,57 @@ def messaggio(m, nomi, taglio_ms):
     return out
 
 
+def giorno_della_serata(adesso, serata=""):
+    """La data che va in pagina. Il workflow la passa in SERATA: un cron che
+    GitHub consegna alle 2 di notte e' ancora la serata di ieri, e se prendesse
+    la data di oggi la corsa di stasera troverebbe la serata gia' pubblicata."""
+    serata = (serata or "").strip()
+    return date.fromisoformat(serata) if serata else adesso.date()
+
+
+def inizio_finestra(adesso, giorno):
+    """Da dove si leggono le mail della serata `giorno`: 24 ore fa, ma mai dopo
+    le 20 della sera prima. Con corse a orari diversi (20:17 un giorno, 2:06
+    la notte dopo) le 24 ore secche lasciavano fuori le mail di mezzo, che non
+    venivano ne' etichettate ne' riassunte. Sovrapporsi invece non costa
+    niente: le etichette gia' messe non si rimettono."""
+    sera_prima = datetime.combine(giorno - timedelta(days=1), time(INIZIO_SERA),
+                                  tzinfo=adesso.tzinfo)
+    return min(adesso - timedelta(hours=FINESTRA_ORE), sera_prima)
+
+
+def query_recenti(adesso, taglio):
+    """Larga apposta, poi si stringe con `recente`. Due giorni bastano per ogni
+    corsa del cron; una corsa a mano nel pomeriggio puo' risalire a quasi 48
+    ore, e li' ne servono tre."""
+    giorni = 2 if adesso - taglio <= timedelta(hours=40) else 3
+    return Q_24H.format(giorni=giorni)
+
+
 def main(destinazione):
     svc = service()
     nomi = {i: n for n, i in mappa_etichette(svc).items()}
     adesso = datetime.now(ZoneInfo(FUSO))
-    taglio = adesso - timedelta(hours=FINESTRA_ORE)
+    giorno = giorno_della_serata(adesso, os.environ.get("SERATA"))
+    taglio = inizio_finestra(adesso, giorno)
     taglio_ms = int(taglio.timestamp() * 1000)
 
     dati = {
-        "oggi": f"{GIORNI[adesso.weekday()]} {adesso.day:02d} {MESI[adesso.month - 1]} {adesso.year}",
-        "oggi_iso": adesso.date().isoformat(),
-        "stamp": adesso.strftime("%d.%m"),
+        "oggi": f"{GIORNI[giorno.weekday()]} {giorno.day:02d} {MESI[giorno.month - 1]} {giorno.year}",
+        "oggi_iso": giorno.isoformat(),
+        "stamp": giorno.strftime("%d.%m"),
         "adesso": adesso.isoformat(timespec="minutes"),
         "finestra_da": taglio.isoformat(timespec="minutes"),
         "etichette_disponibili": sorted(nomi.values()),
     }
-    for gruppo, q in (("ultime_24h", Q_24H), ("pacchi", Q_PACCHI)):
+    for gruppo, q in (("ultime_24h", query_recenti(adesso, taglio)), ("pacchi", Q_PACCHI)):
         thread = []
         for tid in id_thread(svc, q):
             t = riprova(svc.users().threads().get(userId="me", id=tid, format="full"),
                         f"thread {tid}")
             messaggi = [messaggio(m, nomi, taglio_ms) for m in t["messages"]]
             if gruppo == "ultime_24h" and not any(m["recente"] for m in messaggi):
-                continue  # newer_than:2d e' largo apposta, qui stringiamo a 24h vere
+                continue  # la query e' larga apposta, qui si stringe alla finestra vera
             thread.append({"threadId": tid, "messages": messaggi})
         dati[gruppo] = thread
 

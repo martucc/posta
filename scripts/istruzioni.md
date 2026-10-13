@@ -39,6 +39,8 @@ Contiene:
 
 - `oggi` (es. "LUN 21 SET 2026"), `oggi_iso`, `stamp` (GG.MM), `adesso`, `finestra_da`.
   Usa questi, non indovinare la data. I giorni alle scadenze si contano da `oggi_iso`.
+  `oggi` è il giorno della serata: se il lavoro parte dopo mezzanotte, `adesso` è già il
+  giorno dopo ma `oggi` resta quello di ieri sera, ed è giusto così. Copialo com'è.
 - `etichette_disponibili`: i nomi delle etichette che esistono davvero nel suo account.
   Puoi proporre solo questi nomi, esatti. Non inventarne, non proporre ID.
 - `ultime_24h`: i thread con posta recente. Ogni messaggio ha `recente`: **solo quelli
@@ -146,6 +148,23 @@ Vincoli che il validatore fa rispettare, quindi tanto vale rispettarli subito:
 - Gli URL sono https. Massimo 3 bottoni e 4 meta per scheda, 12 voci per sezione.
 - `rumore.split`: al massimo 4 categorie. Se ce ne sono di più, tieni le 3 più grandi e
   somma le altre in una quarta chiamata `Altro`. I numeri devono sommare a `rumore.totale`.
+- `contatori`: da 1 a 5 riquadri. Il numero di un contatore non può superare le schede
+  in pagina più `rumore.totale`.
+- **Lunghezze massime, in caratteri.** Scrivi corto: oltre il limite lo script taglia il
+  testo e ci mette `…`, e una frase tagliata a metà si legge male.
+
+  | campo | max | campo | max |
+  |---|---|---|---|
+  | `titolo.testo` | 90 | `titolo.evidenzia` | 30 |
+  | `testo` di una voce normale | 500 | `testo` di una voce di soldi | **200** |
+  | `chi` (voce normale / soldi) | 60 / 80 | `importo.valore` | 16 |
+  | `nota` di sezione | 60 | `coda` di sezione | **400** |
+  | `tag.testo` | 40 | tappa `nome` / `data` | 24 / 12 |
+  | `meta.chiave` / `meta.valore` | 20 / 60 | azione `testo` / `nota` | 24 / 40 |
+  | etichetta di contatore o di rumore | 18 | `rumore.testo` | 200 |
+  | `data.oggi` | 24 | `footer` | 300 |
+
+  La `coda` dei pacchi chiusi è una riga, non un elenco ragionato: nomi dei negozi e basta.
 - Una sezione senza voci va omessa: la pagina è la foto di stasera, non un archivio.
 - Se non è successo niente di rilevante: `sezioni` vuoto, i contatori del solo rumore.
   La pagina dirà da sé "Serata tranquilla".

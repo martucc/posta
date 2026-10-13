@@ -7,6 +7,8 @@ e ogni errore e' un messaggio in italiano che dice dove guardare.
 
 import re
 
+from controlla_pagina import controlla_segreti, iban_valido
+
 TAPPE = 4
 STILI_TAG = {"ok", "go", "warn", "crit"}
 STILI_IMPORTO = {"in", "out", "zero"}
@@ -41,8 +43,18 @@ VIETATO = re.compile(
     r"|(?:\bya29\.[A-Za-z0-9._-]{20,})"
     r"|(?:\bAIza[A-Za-z0-9_-]{30,})"
     r"|(?:\bsk-[A-Za-z0-9]{20,})"
-    r"|(?:\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,})"
-    r"|(?:\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b)", re.I)
+    r"|(?:\bsk-ant-[A-Za-z0-9_-]{20,})"
+    r"|(?:\beyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,})", re.I)
+
+# Un IBAN e' un segreto solo se il checksum torna: "LP00612345678901" e' un
+# tracking Cainiao con la forma di un IBAN, e bloccava la pagina intera.
+FORMA_IBAN = re.compile(r"\b[A-Z]{2}\d{2}[A-Z0-9]{11,30}\b", re.I)
+
+
+def segreto(v):
+    if VIETATO.search(v):
+        return True
+    return any(iban_valido(m.group(0).upper()) for m in FORMA_IBAN.finditer(v))
 
 
 class Errore(ValueError):
@@ -62,16 +74,46 @@ def _campo(dove, chiave):
     return f"{dove}.{chiave}" if dove else chiave
 
 
+def accorcia(v, massimo):
+    """Taglia a fine parola e chiude con un'ellissi. Un ** rimasto spaiato dal
+    taglio sparisce, altrimenti in pagina resterebbero due asterischi."""
+    corto = v[:massimo - 1]
+    spazio = corto.rfind(" ")
+    if spazio >= massimo // 2:
+        corto = corto[:spazio]
+    corto = corto.rstrip(" ,;:.-–—") or v[:massimo - 1]
+    if corto.endswith("*") and not corto.endswith("**"):
+        corto = corto[:-1]  # taglio fra i due asterischi di chiusura
+    if corto.count("**") % 2:
+        i = corto.rfind("**")
+        corto = corto[:i] + corto[i + 2:]
+    return corto + "…"
+
+
 def testo(valore, dove, massimo=600, obbligatorio=True):
+    """I testi troppo lunghi si accorciano con un avviso, come le liste: il
+    2 e il 3 ottobre una riga di Soldi di 274 e 303 caratteri ha tenuto offline
+    la pagina intera. I segreti invece fermano tutto, e si cercano sia sul testo
+    intero sia su quello tagliato."""
     if valore is None and not obbligatorio:
         return None
     if not isinstance(valore, str) or not valore.strip():
         raise Errore(f"{dove}: manca il testo")
     v = valore.strip()
-    if len(v) > massimo:
-        raise Errore(f"{dove}: troppo lungo ({len(v)} caratteri, massimo {massimo})")
-    if VIETATO.search(v):
+    if segreto(v):
         raise Errore(f"{dove}: contiene una parola vietata in pagina pubblica")
+    if len(v) > massimo:
+        # Il controllo della pagina vede solo il testo gia' tagliato: un IBAN
+        # o una carta scritti a gruppi, tagliati a meta', gli sfuggirebbero.
+        # Quindi i suoi controlli girano qui, sul testo intero.
+        problemi = []
+        controlla_segreti(v, problemi)
+        if problemi:
+            raise Errore(f"{dove}: contiene una parola vietata in pagina pubblica ({problemi[0]})")
+        print(f"AVVISO: {dove} era lungo {len(v)} caratteri, accorciato a {massimo}")
+        v = accorcia(v, massimo)
+        if segreto(v):
+            raise Errore(f"{dove}: contiene una parola vietata in pagina pubblica")
     return v
 
 
@@ -88,7 +130,7 @@ def url(valore, dove, obbligatorio=True):
         return None
     if not isinstance(valore, str) or not URL_OK.match(valore):
         raise Errore(f"{dove}: serve un URL https valido")
-    if VIETATO.search(valore):
+    if segreto(valore):
         raise Errore(f"{dove}: l'URL sembra contenere un token o una credenziale")
     return valore
 
@@ -230,22 +272,24 @@ def sezione(valore, nome):
 
 
 def contatori(valore):
-    if not isinstance(valore, list) or not 1 <= len(valore) <= 5:
+    if not isinstance(valore, list) or not valore:
         raise Errore("contatori: da 1 a 5 riquadri")
-    out, urgenti = [], 0
+    valore = troppi(valore, 5, "contatori")
+    out, urgente_visto = [], False
     for i, c in enumerate(valore):
         d = f"contatori[{i}]"
         if not isinstance(c, dict):
             raise Errore(f"{d}: dev'essere un oggetto")
         urgente = bool(c.get("urgente", False))
-        urgenti += urgente
+        if urgente and urgente_visto:
+            print(f"AVVISO: {d} era il secondo riquadro urgente, resta normale")
+            urgente = False
+        urgente_visto = urgente_visto or urgente
         out.append({
             "n": intero(c.get("n"), _campo(d, "n")),
             "etichetta": testo(c.get("etichetta"), _campo(d, "etichetta"), 18),
             "urgente": urgente,
         })
-    if urgenti > 1:
-        raise Errore("contatori: un solo riquadro puo' essere urgente")
     return out
 
 
@@ -297,7 +341,14 @@ def valida(dati):
     frase = testo(titolo.get("testo"), "titolo.testo", 90)
     evidenzia = testo(titolo.get("evidenzia"), "titolo.evidenzia", 30, obbligatorio=False)
     if evidenzia and evidenzia not in frase:
-        raise Errore("titolo.evidenzia: la parola da evidenziare non e' nella frase")
+        intera = str(titolo.get("testo")).strip()
+        if (frase != intera or evidenzia != str(titolo.get("evidenzia")).strip()) \
+                and str(titolo.get("evidenzia")).strip() in intera:
+            # Il taglio ha portato via le parole da evidenziare: niente evidenziato.
+            print("AVVISO: titolo.evidenzia e' finito nella parte tagliata, lo tolgo")
+            evidenzia = None
+        else:
+            raise Errore("titolo.evidenzia: la parola da evidenziare non e' nella frase")
 
     sezioni = {}
     for nome, _ in SEZIONI:
